@@ -1,0 +1,58 @@
+{
+	"name": "M9Source",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureDataLakeStorage",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"Source_Column_Delimiter": {
+				"type": "string"
+			},
+			"Source_Encoding": {
+				"type": "string"
+			},
+			"Source_Escape_Character": {
+				"type": "string"
+			},
+			"Source_Quote_Character": {
+				"type": "string"
+			},
+			"Source_Container": {
+				"type": "string"
+			},
+			"Source_Folder": {
+				"type": "string"
+			},
+			"Source_File_Name": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileSystem": "raw"
+			},
+			"columnDelimiter": {
+				"value": "@dataset().Source_Column_Delimiter",
+				"type": "Expression"
+			},
+			"encodingName": {
+				"value": "@dataset().Source_Encoding",
+				"type": "Expression"
+			},
+			"escapeChar": {
+				"value": "@dataset().Source_Escape_Character",
+				"type": "Expression"
+			},
+			"quoteChar": {
+				"value": "@dataset().Source_Quote_Character",
+				"type": "Expression"
+			}
+		},
+		"schema": []
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

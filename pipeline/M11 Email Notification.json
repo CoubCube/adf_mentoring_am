@@ -1,0 +1,194 @@
+{
+	"name": "M11 Email Notification",
+	"properties": {
+		"activities": [
+			{
+				"name": "Trigger",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Copy data",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": true,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "@pipeline().globalParameters.HttpPostURL",
+						"type": "Expression"
+					},
+					"method": "GET",
+					"authentication": {
+						"type": "MSI",
+						"resource": "https://vault.azure.net"
+					}
+				}
+			},
+			{
+				"name": "Web",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Trigger",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "@activity('Trigger').output.value",
+						"type": "Expression"
+					},
+					"method": "POST",
+					"body": {
+						"value": "{\n   \"pipelineID\" : \"@{pipeline().RunId}\",\n   \"dataFactoryName\" : \"@{pipeline().DataFactory}\", \n   \"pipelineName\" : \"@{pipeline().Pipeline}\", \n   \"status\" : \"@{activity('Copy data').output.executionDetails[0].status}\",\n   \"errorCode\" : \"-\",\n   \"failureType\" : \"-\",\n   \"errorMessage\" : \"-\"\n  }",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Trigger Fail",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Copy data",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": true,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "@pipeline().globalParameters.HttpPostURL",
+						"type": "Expression"
+					},
+					"method": "GET",
+					"authentication": {
+						"type": "MSI",
+						"resource": "https://vault.azure.net"
+					}
+				}
+			},
+			{
+				"name": "Web Fail",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Trigger Fail",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": {
+						"value": "@activity('Trigger Fail').output.value",
+						"type": "Expression"
+					},
+					"method": "POST",
+					"body": {
+						"value": "{\n   \"pipelineID\" : \"@{pipeline().RunId}\",\n   \"dataFactoryName\" : \"@{pipeline().DataFactory}\", \n   \"pipelineName\" : \"@{pipeline().Pipeline}\", \n   \"status\" : \"@{activity('Copy data').output.executionDetails[0].status}\",\n   \"errorCode\" : \"@{activity('Copy data').error.errorCode}\",\n   \"failureType\" : \"@{activity('Copy data').error.failureType}\",\n   \"errorMessage\" : \"@{replace(activity('Copy data').error.Message,'''','')}\"\n  }",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Copy data",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "DelimitedTextSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": false,
+							"wildcardFolderPath": "movie",
+							"wildcardFileName": "*.csv",
+							"enablePartitionDiscovery": false
+						},
+						"formatSettings": {
+							"type": "DelimitedTextReadSettings"
+						}
+					},
+					"sink": {
+						"type": "DelimitedTextSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "DelimitedTextWriteSettings",
+							"quoteAllText": true,
+							"fileExtension": ".csv"
+						}
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "DataLakeMovies",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DataLakeArchive",
+						"type": "DatasetReference"
+					}
+				]
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2023-06-20T16:34:13Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

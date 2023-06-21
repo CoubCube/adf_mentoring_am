@@ -1,0 +1,22 @@
+{
+	"name": "SelfHostedSqlServer",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "SqlServer",
+		"typeProperties": {
+			"connectionString": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": "onpremsqlcreds"
+			}
+		},
+		"connectVia": {
+			"referenceName": "SelfHostedIntegrationRuntime",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

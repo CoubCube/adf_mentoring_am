@@ -1,0 +1,271 @@
+{
+	"name": "M7 Incremental Copy To Data Lake",
+	"properties": {
+		"activities": [
+			{
+				"name": "IncrementalCopyActivity",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "LookupOldWaterMarkActivity",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "JsonSource",
+						"storeSettings": {
+							"type": "AzureBlobStorageReadSettings",
+							"recursive": false,
+							"modifiedDatetimeStart": {
+								"value": "@formatDateTime(activity('LookupOldWaterMarkActivity').output.firstRow.WatermarkValue)",
+								"type": "Expression"
+							},
+							"wildcardFileName": "*.json",
+							"enablePartitionDiscovery": false
+						},
+						"formatSettings": {
+							"type": "JsonReadSettings"
+						}
+					},
+					"sink": {
+						"type": "JsonSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "JsonWriteSettings"
+						}
+					},
+					"enableStaging": false
+				},
+				"inputs": [
+					{
+						"referenceName": "M7OnlineBlobStorage",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "M7OnlineDataLake",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "LookupOldWaterMarkActivity",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "M7WatermarkDataset",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "StoredProceduretoWriteWatermarkActivity",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "ForEach",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[usp_write_watermarkonline]",
+					"storedProcedureParameters": {
+						"LastModifiedtime": {
+							"value": {
+								"value": "@addhours(variables('maxTime'),-4)",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"TableName": {
+							"value": "data_source_table",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "SelfHostedSqlServer",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Get List Of Files",
+				"type": "GetMetadata",
+				"dependsOn": [
+					{
+						"activity": "IncrementalCopyActivity",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "GetMetaDataFromStorage",
+						"type": "DatasetReference"
+					},
+					"fieldList": [
+						"childItems"
+					],
+					"storeSettings": {
+						"type": "AzureBlobStorageReadSettings",
+						"recursive": true,
+						"enablePartitionDiscovery": false
+					},
+					"formatSettings": {
+						"type": "DelimitedTextReadSettings"
+					}
+				}
+			},
+			{
+				"name": "ForEach",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get List Of Files",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get List Of Files').output.childItems",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Get File Name",
+							"type": "GetMetadata",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "M7GetMetaDataFromStorage",
+									"type": "DatasetReference",
+									"parameters": {
+										"FileName": "@item().Name"
+									}
+								},
+								"fieldList": [
+									"lastModified"
+								],
+								"storeSettings": {
+									"type": "AzureBlobStorageReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "JsonReadSettings"
+								}
+							}
+						},
+						{
+							"name": "If Condition",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "Get File Name",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@greater(activity('Get File Name').output.lastModified, variables('maxTime') )",
+									"type": "Expression"
+								},
+								"ifTrueActivities": [
+									{
+										"name": "SetMaxTime",
+										"type": "SetVariable",
+										"dependsOn": [],
+										"policy": {
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"variableName": "maxTime",
+											"value": {
+												"value": "@activity('Get File Name').output.lastModified",
+												"type": "Expression"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			}
+		],
+		"variables": {
+			"maxTime": {
+				"type": "String"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-05-29T15:10:42Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

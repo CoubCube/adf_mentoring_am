@@ -1,0 +1,304 @@
+{
+	"name": "M6 Incremental Copy Pipeline",
+	"properties": {
+		"activities": [
+			{
+				"name": "LookupOldWaterMarkActivity",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "WatermarkDataset",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "LookupNewWaterMarkActivity",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": {
+							"value": "SELECT MAX(@{pipeline().parameters.waterMarkCol}) AS NewwaterMarkVal\nFROM @{pipeline().parameters.srcTableName}",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "OnPremSqlServer",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "IncrementalCopyActivity",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "LookupNewWaterMarkActivity",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "LookupOldWaterMarkActivity",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": {
+							"value": "select * from @{pipeline().parameters.srcTableName}\nwhere @{pipeline().parameters.waterMarkCol} > '@{activity('LookupOldWaterMarkActivity').output.firstRow.WatermarkValue}' \nand @{pipeline().parameters.waterMarkCol} <= '@{activity('LookupNewWaterMarkActivity').output.firstRow.NewWatermarkVal}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "AzureSqlSink",
+						"preCopyScript": {
+							"value": "TRUNCATE TABLE @{pipeline().parameters.stgTableName}",
+							"type": "Expression"
+						},
+						"writeBehavior": "insert",
+						"sqlWriterUseTableLock": false,
+						"disableMetricsCollection": false
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"mappings": [
+							{
+								"source": {
+									"name": "CinemaCode"
+								},
+								"sink": {
+									"name": "cinema_code"
+								}
+							},
+							{
+								"source": {
+									"name": "CinemaName"
+								},
+								"sink": {
+									"name": "cinema_name"
+								}
+							},
+							{
+								"source": {
+									"name": "MovieId"
+								},
+								"sink": {
+									"name": "movie_id"
+								}
+							},
+							{
+								"source": {
+									"name": "TicketCount"
+								},
+								"sink": {
+									"name": "ticket_count"
+								}
+							},
+							{
+								"source": {
+									"name": "TicketPrice"
+								},
+								"sink": {
+									"name": "ticket_price"
+								}
+							},
+							{
+								"source": {
+									"name": "TransactionId"
+								},
+								"sink": {
+									"name": "transaction_id"
+								}
+							},
+							{
+								"source": {
+									"name": "TransactionDt"
+								},
+								"sink": {
+									"name": "transaction_date"
+								}
+							}
+						],
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "OnPremSqlServer",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "AzureDB",
+						"type": "DatasetReference",
+						"parameters": {
+							"TableName": "cinema_tickets"
+						}
+					}
+				]
+			},
+			{
+				"name": "StoredProceduretoWriteWatermarkActivity",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "IncrementalCopyActivity",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[usp_write_watermark]",
+					"storedProcedureParameters": {
+						"LastModifiedtime": {
+							"value": {
+								"value": "@{activity('LookupNewWaterMarkActivity').output.firstRow.NewWatermarkVal}",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"TableName": {
+							"value": {
+								"value": "@{activity('LookupOldWaterMarkActivity').output.firstRow.TableName}",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "SelfHostedSqlServer",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "spPopulatetCinema",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "StoredProceduretoWriteWatermarkActivity",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[spPopulatetCinema]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "spPopulatetCinemaTickets",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "spPopulatetCinema",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[spPopulatetCinemaTickets]"
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"parameters": {
+			"srcTableName": {
+				"type": "string",
+				"defaultValue": "[dbo].[Tickets]"
+			},
+			"waterMarkCol": {
+				"type": "string",
+				"defaultValue": "TransactionDt"
+			},
+			"stgTableName": {
+				"type": "string",
+				"defaultValue": "[stg].[cinema_tickets]"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-05-23T14:13:05Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

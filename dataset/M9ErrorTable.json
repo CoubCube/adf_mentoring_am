@@ -1,0 +1,46 @@
+{
+	"name": "M9ErrorTable",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureSqlDatabase",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "Pipeline_Name",
+				"type": "varchar"
+			},
+			{
+				"name": "Run_ID",
+				"type": "varchar"
+			},
+			{
+				"name": "Error_Code",
+				"type": "varchar"
+			},
+			{
+				"name": "Failure_Type",
+				"type": "varchar"
+			},
+			{
+				"name": "Error_Message",
+				"type": "varchar"
+			},
+			{
+				"name": "Datetime",
+				"type": "varchar"
+			},
+			{
+				"name": "Activity_Name",
+				"type": "varchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "etl",
+			"table": "tErrorTable"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

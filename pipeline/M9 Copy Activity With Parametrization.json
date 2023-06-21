@@ -1,0 +1,311 @@
+{
+	"name": "M9 Copy Activity With Parametrization",
+	"properties": {
+		"activities": [
+			{
+				"name": "ForEach",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Truncate Script",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@pipeline().parameters.ObjectsToCopy",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "CopyDataToDB",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "DelimitedTextSource",
+									"additionalColumns": [
+										{
+											"name": "pipelineId",
+											"value": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											}
+										},
+										{
+											"name": "source_filename",
+											"value": "$$FILEPATH"
+										}
+									],
+									"storeSettings": {
+										"type": "AzureBlobFSReadSettings",
+										"recursive": false,
+										"wildcardFolderPath": {
+											"value": "@item().Source_Folder",
+											"type": "Expression"
+										},
+										"wildcardFileName": {
+											"value": "@item().Source_File_Name",
+											"type": "Expression"
+										},
+										"enablePartitionDiscovery": false
+									},
+									"formatSettings": {
+										"type": "DelimitedTextReadSettings",
+										"skipLineCount": 1
+									}
+								},
+								"sink": {
+									"type": "AzureSqlSink",
+									"writeBehavior": "insert",
+									"sqlWriterUseTableLock": false
+								},
+								"enableStaging": false,
+								"dataIntegrationUnits": {
+									"value": "@item().DIU_Value",
+									"type": "Expression"
+								},
+								"translator": {
+									"value": "@json(item().Mapping).translator",
+									"type": "Expression"
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "M9Source",
+									"type": "DatasetReference",
+									"parameters": {
+										"Source_Column_Delimiter": {
+											"value": "@item().Source_Column_Delimiter",
+											"type": "Expression"
+										},
+										"Source_Encoding": {
+											"value": "@item().Source_Encoding",
+											"type": "Expression"
+										},
+										"Source_Escape_Character": {
+											"value": "@item().Source_Escape_Character",
+											"type": "Expression"
+										},
+										"Source_Quote_Character": {
+											"value": "@item().Source_Quote_Character",
+											"type": "Expression"
+										},
+										"Source_Container": {
+											"value": "@item().Source_Container",
+											"type": "Expression"
+										},
+										"Source_Folder": {
+											"value": "@item().Source_Folder",
+											"type": "Expression"
+										},
+										"Source_File_Name": {
+											"value": "@item().Source_File_Name",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "M9Destination",
+									"type": "DatasetReference",
+									"parameters": {
+										"Destination_Schema_Name": {
+											"value": "@item().Destination_Schema_Name",
+											"type": "Expression"
+										},
+										"Destination_Table_Name": {
+											"value": "@item().Destination_Table_Name",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Logging",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "CopyDataToDB",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT \n'@{pipeline().Pipeline}' as Pipeline_Name,\n'@{pipeline().RunId}' as Run_ID,\n'@{activity('CopyDataToDB').output.billingReference.billableDuration[0].meterType}' as Meter_Type,\n'@{activity('CopyDataToDB').output.billingReference.billableDuration[0].duration}' as Duration,\n'@{activity('CopyDataToDB').output.billingReference.billableDuration[0].unit}' as Unit,\n'@{activity('CopyDataToDB').output.filesRead}' as Number_Of_Processed_Files,\n'@{activity('CopyDataToDB').output.rowsRead}' as Number_Of_Read_Rows,\n'@{activity('CopyDataToDB').output.rowsCopied}' as Number_Of_Copied_Rows,\n'@{activity('CopyDataToDB').output.usedDataIntegrationUnits}' as DIU,\n'@{activity('CopyDataToDB').output.usedParallelCopies}' as Parallel_Copies,\n'@{activity('CopyDataToDB').output.executionDetails[0].start}' as Start_Time,\n'@{utcnow()}' as End_Time,\n'@{activity('CopyDataToDB').output.executionDetails[0].status}' as Status,\n'@{activity('CopyDataToDB').output.executionDetails[0].detailedDurations.queuingDuration}' as Queue_Duration,\n'@{activity('CopyDataToDB').output.executionDetails[0].detailedDurations.transferDuration}' as Transfer_Duration,\n'@{activity('CopyDataToDB').output.copyDuration}' as Copy_Duration",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "AzureSqlSink",
+									"writeBehavior": "insert",
+									"sqlWriterUseTableLock": false
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "M9ControlTable",
+									"type": "DatasetReference"
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "M9Logging",
+									"type": "DatasetReference"
+								}
+							]
+						},
+						{
+							"name": "spPopulatetErrorTable",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "CopyDataToDB",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[etl].[spPopulatetErrorTable]",
+								"storedProcedureParameters": {
+									"Pipeline_Name": {
+										"value": {
+											"value": "@{pipeline().Pipeline}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Run_ID": {
+										"value": {
+											"value": "@{pipeline().RunId}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Error_Code": {
+										"value": {
+											"value": "@{activity('CopyDataToDB').error.errorCode}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Failure_Type": {
+										"value": {
+											"value": "@{activity('CopyDataToDB').error.failureType}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Error_Message": {
+										"value": {
+											"value": "@{replace(activity('CopyDataToDB').error.Message,'''','')}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Datetime": {
+										"value": {
+											"value": "@{utcnow()}",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Activity_Name": {
+										"value": {
+											"value": "@{activity('CopyDataToDB').ActivityType}",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "AzureSqlDatabase",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Truncate Script",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "TRUNCATE TABLE stg.movies_metadata\nTRUNCATE TABLE stg.ratings\nTRUNCATE TABLE stg.credits"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"parameters": {
+			"ObjectsToCopy": {
+				"type": "array"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-06-15T12:34:47Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

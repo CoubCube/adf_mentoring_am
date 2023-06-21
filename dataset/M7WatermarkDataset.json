@@ -1,0 +1,17 @@
+{
+	"name": "M7WatermarkDataset",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "SelfHostedSqlServer",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "SqlServerTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "watermarktableonline"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

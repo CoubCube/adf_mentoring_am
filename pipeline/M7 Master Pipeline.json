@@ -1,0 +1,63 @@
+{
+	"name": "M7 Master Pipeline",
+	"properties": {
+		"activities": [
+			{
+				"name": "Incremental Copy To Data Lake",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "M7 Incremental Copy To Data Lake",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			},
+			{
+				"name": "From Data Lake To Database",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Incremental Copy To Data Lake",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "M7 From Data Lake To Database",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			},
+			{
+				"name": "Put To Archive And Delete",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "From Data Lake To Database",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "M7 Put To Archive And Delete",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2023-05-29T16:21:05Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
