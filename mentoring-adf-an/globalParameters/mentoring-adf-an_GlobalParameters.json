@@ -1,0 +1,6 @@
+{
+	"HttpPostURL": {
+		"type": "string",
+		"value": "https://mentoring-key-vault-an.vault.azure.net/secrets/httppost/d727027bf1ed4c51a522d4592f76bf2a?api-version=7.0"
+	}
+}
